@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import datetime as dt
+import os
 
 from pathlib import Path
 from random import random
@@ -100,8 +101,10 @@ class Watchlist(object):
         AVkwargs = {"api_key": "YOUR API KEY", "clean": True, "export": True, "output_size": "full", "premium": False}
         self.av_kwargs = self.kwargs.pop("av_kwargs", AVkwargs)
         self.ds = AV.AlphaVantage(**self.av_kwargs)
-        self.file_path = self.ds.export_path
-
+        self.file_path = f"{self.ds.export_path}/data" 
+        if not os.path.exists(self.file_path):
+                os.makedirs(self.file_path)
+                
         if self.ds_name == "yahoo":
             self.ds = yf
 
@@ -144,9 +147,9 @@ class Watchlist(object):
             _last = kwargs.pop("last", 252)
             _title = kwargs.pop("title", f"{df.ticker}   {_time}   [{self.ds_name}]")
 
-            col = kwargs.pop("close", "close")
+            col = kwargs.pop("Close", "Close")
             if mas:
-                # df.ta.strategy(self.strategy, append=True)
+                df.ta.strategy(self.strategy, append=True)
                 price = df[[col, "SMA_10", "SMA_20", "SMA_50", "SMA_200"]]
             else:
                 price = df[col]
@@ -176,6 +179,7 @@ class Watchlist(object):
 
         filename_ = f"{ticker}_{tf}.csv"
         current_file = Path(self.file_path) / filename_
+        print(current_file)
 
         # Load local or from Data Source
         if current_file.exists():
@@ -183,8 +187,9 @@ class Watchlist(object):
             # if self.ds_name == "av":
             if self.ds_name in ["av", "yahoo"]:
                 df = pd.read_csv(current_file, index_col=0)
+                df['Datetime'] = pd.to_datetime(df.index, utc=True)
                 if not df.ta.datetime_ordered:
-                    df = df.set_index(pd.DatetimeIndex(df.index))
+                    df = df.set_index(pd.DatetimeIndex(df['Datetime']))
                 print(file_loaded)
             else:
                 print(f"[X] {filename_} not found in {Path(self.file_path)}")
