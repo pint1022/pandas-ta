@@ -452,7 +452,9 @@ def retrieve_data(tickers,tf):
     # watch.strategy = ta.CommonStrategy # If you have a Custom Strategy, you can use it here.
     momo_bands_sma_ta = [
         {"kind":"sma", "length": 50},
+        {"kind":"sma", "length": 100},
         {"kind":"sma", "length": 200},
+        {"kind":"sma", "length": 250},
         {"kind":"bbands", "length": 20, "ddof": 0},
         {"kind":"macd"},
         {"kind":"rsi"},
@@ -477,6 +479,32 @@ def read_assets(tickers, start_data, end_date):
                       interval="D",                                    
                       missing_index="drop")
     return assets
+
+def add_jc_data(asset):
+#     asset = watch.data[ticker]
+    sma=50
+    rolling_window = (asset['Close']-asset['SMA_50']).rolling(window=sma)
+    rolling_rank = rolling_window.apply(lambda x: pd.Series(x).rank().iloc[-1])
+    asset['rk50'] = rolling_rank
+    sma=100
+    rolling_window = (asset['Close']-asset['SMA_100']).rolling(window=sma)
+    rolling_rank = rolling_window.apply(lambda x: pd.Series(x).rank().iloc[-1])
+    
+    asset['rk100'] = rolling_rank
+    asset['cmb_rk'] = (asset['rk50'] + asset['rk100'])*100/150
+    
+    sma=250
+    rolling_window = asset['Close'].rolling(window=sma)
+    rolling_rank = rolling_window.apply(lambda x: pd.Series(x).rank().iloc[-1])
+    asset['rk250'] = rolling_rank
+    sma=100
+    rolling_window = asset['Close'].rolling(window=sma)
+    rolling_rank = rolling_window.apply(lambda x: pd.Series(x).rank().iloc[-1])
+    asset['rkprice'] = rolling_rank
+    asset['deltaclose'] = asset['Close'].diff()    
+    return asset
+
+
 
 def process_data(watch, ticker, tf, duration="10y"):    
     if DEBUG==1:
