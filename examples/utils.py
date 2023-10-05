@@ -504,7 +504,27 @@ def add_jc_data(asset):
     asset['deltaclose'] = asset['Close'].diff()    
     return asset
 
+def dtmonth(df: pd.DataFrame, start , end):
+    df['Day'] = df.index.strftime('%d').astype(int)
+    df['Month'] = df.index.strftime('%m').astype(int)
+    return df.loc[df.index.strftime('%Y-%m-%d').isin(start) | df.index.strftime('%Y-%m-%d').isin(end) , :].copy()
 
+def check_cross(df, sma = 200):
+    if sma==50:
+        sma_value = df['SMA_50']
+    elif sma==100:
+        sma_value = df['SMA_100']
+    elif sma==250:
+        sma_value = df['SMA_250']
+    else:
+        sma_value = df['SMA_200']
+        
+    df['Day-1'] = df['Day'].shift(1)
+    df['close-1'] = df['Close'].shift(1)
+
+    df['cross'] =  np.where((df['Close'] > sma_value) & (df['close-1'] < sma_value) & (df['Day'] > 15) & (df['Day-1'] < 15), 1, 0)
+    df['cross'] =  np.where((df['Close'] < sma_value) & (df['close-1'] > sma_value) & (df['Day'] > 15) & (df['Day-1']< 15), -1, df['cross'])
+    
 
 def process_data(watch, ticker, tf, duration="10y"):    
     if DEBUG==1:
