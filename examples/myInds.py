@@ -6,7 +6,7 @@ import pandas_ta as ta
 import vectorbt as vbt
 import os
 import yfinance as yf
-# import talib
+# import talib as vbt
 from datetime import datetime, timedelta, timezone
 
 
@@ -184,10 +184,7 @@ def sma_indicator(Day, cross):
     trend = np.where((Day > 10) & (cross > 0), 1, trend)
     return trend
 
-def sma_indicator(Day, cross):
-    trend = np.where((Day > 10) & (cross < 0) , -1, 0)
-    trend = np.where((Day > 10) & (cross > 0), 1, trend)
-    return trend
+
 
 def sept_indicator(Month, Day):
     trend = np.where((Month == 9) & (Day < 10) , -1, 0)

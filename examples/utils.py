@@ -3,6 +3,7 @@ import random as rnd
 from sys import float_info as sflt
 import os
 from tqdm import tqdm
+from datetime import datetime
 
 import numpy as np
 import pandas as pd
@@ -15,6 +16,8 @@ import mplfinance as mpf
 import pandas_ta as ta
 import vectorbt as vbt
 
+import sys
+sys.path.append('examples')
 from watchlist import colors, Watchlist # Is this failing? If so, copy it locally. See above.
 
     
@@ -24,7 +27,7 @@ def format_millions(x, pos):
     return "%1.1fM" % (x * 1e-6)
 
 # def ctitle(indicator_name, ticker="SPY", length=100):
-#     return f"{ticker}: {indicator_name} from {recent_startdate} to {recent_enddate} ({length})"
+#     return f"{ticker}: {indicator_name} from {recent_s rtdate} to {recent_enddate} ({length})"
 
 # # All Data: 0, Last Four Years: 0.25, Last Two Years: 0.5, This Year: 1, Last Half Year: 2, Last Quarter: 3
 # yearly_divisor = 1
@@ -504,10 +507,18 @@ def add_jc_data(asset):
     asset['deltaclose'] = asset['Close'].diff()    
     return asset
 
+def dtmask(df: pd.DataFrame, start: datetime, end: datetime):
+    df['Datetime'] = pd.to_datetime(df.index, utc=True)
+#     print(df['Datetime'])
+    if not df.ta.datetime_ordered:
+        df = df.set_index(pd.DatetimeIndex(df['Datetime']))    
+    return df.loc[(df.index >= pd.to_datetime(start, utc=True)) & (df.index <= pd.to_datetime(end, utc=True)), :].copy()
+
 def dtmonth(df: pd.DataFrame, start , end):
     df['Day'] = df.index.strftime('%d').astype(int)
     df['Month'] = df.index.strftime('%m').astype(int)
     return df.loc[df.index.strftime('%Y-%m-%d').isin(start) | df.index.strftime('%Y-%m-%d').isin(end) , :].copy()
+
 
 def check_cross(df, sma = 200):
     if sma==50:
@@ -612,3 +623,86 @@ def display_return_1(asset, trendy):
 def display_return_2(asset, trendy):
     asset["ACTRET_1"] = trendy.TS_Trends.shift(1) * asset.PCTRET_1
     ((asset[["PCTRET_1", "ACTRET_1"]] + 1).cumprod() - 1).plot(figsize=(16, 3), kind="area", stacked=False, color=colors("GyOr"), title="B&H vs. Cum. Active Returns", alpha=.4, grid=True).axhline(0, color="black")
+    
+def combine_stats(pf: vbt.portfolio.base.Portfolio, ticker: str, strategy: str, mode: int = 0):
+    header = pd.Series({
+        "Run Time": ta.get_time(full=False, to_string=True),
+        "Mode": "LIVE" if mode else "TEST",
+        "Strategy": strategy,
+        "Direction": vbt.settings.portfolio["signal_direction"],
+        "Symbol": ticker.upper(),
+        "Fees [%]": 100 * vbt.settings.portfolio["fees"],
+        "Slippage [%]": 100 * vbt.settings.portfolio["slippage"],
+        "Accumulate": vbt.settings.portfolio["accumulate"],
+    })
+    rstats = pf.returns_stats().dropna(axis=0).T
+    stats = pf.stats().dropna(axis=0).T
+    joint = pd.concat([header, stats, rstats])
+    return joint[~joint.index.duplicated(keep="first")]
+
+def earliest_common_index(d: dict):
+    """Returns index of the earliest common index of all DataFrames in the dict"""
+    min_date = None
+    for df in d.values():
+        if min_date is None:
+            min_date = df.index[0]
+        elif min_date < df.index[0]:
+            min_date = df.index[0]
+    return min_date
+
+def dl(tickers: list, same_start: bool = False, **kwargs):
+    if isinstance(tickers, str):
+        tickers = [tickers]
+    
+    if not isinstance(tickers, list) or len(tickers) == 0:
+        print("Must be a non-empty list of tickers or symbols")
+        return
+
+    if "limit" in kwargs and kwargs["limit"] and len(tickers) > kwargs["limit"]:
+        from itertools import islice            
+        tickers = list(islice(tickers, kwargs["limit"]))
+        print(f"[!] Too many assets to compare. Using the first {kwargs['limit']}: {', '.join(tickers)}")
+
+    print(f"[i] Downloading: {', '.join(tickers)}")
+
+    received = {}
+    if len(tickers):
+        _df = pd.DataFrame()
+        for ticker in tickers:
+            received[ticker] = _df.ta.ticker(ticker, **kwargs)
+            print(f"[+] {ticker}{received[ticker].shape} {ta.get_time(full=False, to_string=True)}")
+    
+    if same_start and len(tickers) > 1:
+        earliestci = earliest_common_index(received)
+        print(f"[i] Earliest Common Date: {earliestci}")
+        result = {ticker:df[df.index > earliestci].copy() for ticker,df in received.items()}
+    else:
+        result = received
+    print(f"[*] Download Complete\n")
+    return result
+
+def dtmask(df: pd.DataFrame, start: datetime, end: datetime):
+    df['Datetime'] = pd.to_datetime(df.index, utc=True)
+#     print(df['Datetime'])
+    if not df.ta.datetime_ordered:
+        df = df.set_index(pd.DatetimeIndex(df['Datetime']))    
+    return df.loc[(df.index >= pd.to_datetime(start, utc=True)) & (df.index <= pd.to_datetime(end, utc=True)), :].copy()
+
+def dtmonth(df: pd.DataFrame, start , end):
+    df['Day'] = df.index.strftime('%d').astype(int)
+    df['Month'] = df.index.strftime('%m').astype(int)
+    return df.loc[df.index.strftime('%Y-%m-%d').isin(start) | df.index.strftime('%Y-%m-%d').isin(end) , :].copy()
+
+def show_data(d: dict):
+    [print(f"{t}[{df.index[0]} - {df.index[-1]}]: {df.shape} {df.ta.time_range:.2f} years") for t,df in d.items()]
+    
+def trade_table(pf: vbt.portfolio.base.Portfolio, k: int = 1, total_fees: bool = False):
+    if not isinstance(pf, vbt.portfolio.base.Portfolio): return
+    k = int(k) if isinstance(k, int) and k > 0 else 1
+
+    df = pf.trades.records[["status", "direction", "size", "entry_price", "exit_price", "return", "pnl"]]
+    if total_fees:
+        df["total_fees"] = df["entry_fees"] + df["exit_fees"]
+#     df.to_excel("trade_udow_2016to2023_exits.xlsx")
+    print(f"\nLast {k} of {df.shape[0]} Trades\n{df.tail(k)}\n")    
+    
