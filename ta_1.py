@@ -13,6 +13,7 @@ import numpy as np
 import pandas as pd
 # import pandas_ta as ta
 import vectorbt as vbt
+import talib
 
 import plotly.graph_objects as go
 import sys
@@ -23,6 +24,47 @@ from examples.myInds import *
 
 LIVE = 0
 common_range = True
+
+def obv_trigger(df, ta_name, stratfile, resultfile, crs):
+    obv = talib.OBV(df['close'], df['volume'])
+    obv_ema = talib.EMA(obv, timeperiod=3)
+    # print(obv_ema)
+    entries =  obv > obv_ema
+    exits = obv < obv_ema
+
+    pf = vbt.Portfolio.from_signals(df['open'], entries, exits)
+    print(pf.stats())
+    fig = pf.plot()
+    fig.layout.xaxis.type = 'category'
+    fig.layout.xaxis2.type = 'category'
+    fig.layout.xaxis3.type = 'category'
+    # fig.show()
+    fig.write_image(stratfile)
+    ##########################################################
+    #
+    #  Buy and Hold
+    #
+    #########################################################
+    assetpf_bnh = vbt.Portfolio.from_holding(df_ori.Close)
+    trade_table(assetpf_bnh, k=5)
+    combine_stats(assetpf_bnh, df.name, strat_name, LIVE)
+    
+    bnh_value: float = assetpf_bnh.stats()['End Value']
+    bnh_return: float = assetpf_bnh.stats()['Total Return [%]']
+    assetpf_bnh.plot (
+        subplots = [
+            'trades',
+            'drawdowns',
+            'value',
+        ]
+    ).write_image(bnhfile)
+    print( "=" * 50)
+    print(f"Analysis of: {df.name}{crs if common_range else ''}")
+    print(f"             {strat_name}        Buy-n-Hold")
+    print( "=" * 50 + "")    
+    print(f"total_return: {round(total_return,2)},               {round(bnh_return,2)}")
+    print(f"total_value:   {round(end_value, 2)}              {round(bnh_value,2)}")
+    print( "=" * 50)
 
 def show_trend(df, df_ori, ta_name, stratfile, bnhfile, resultfile, crs):
     if ta_name == "JC" :
@@ -35,6 +77,13 @@ def show_trend(df, df_ori, ta_name, stratfile, bnhfile, resultfile, crs):
     elif ta_name == "SEPT":
         asset_trends, asset_exits = trends_sept(df)
         strat_name = "Ou_September Sell"
+    elif ta_name == "OBV":
+        obv = talib.OBV(df['Close'], df['Volume'])
+        obv_ema = talib.EMA(obv, timeperiod=3)
+        # print(obv_ema)
+        asset_trends =  obv > obv_ema
+        asset_exits = obv < obv_ema
+        strat_name = "OBV-Open"
     else:
         print("Not supported strategy")
         return 
@@ -47,14 +96,22 @@ def show_trend(df, df_ori, ta_name, stratfile, bnhfile, resultfile, crs):
     
     asset_trends.copy().astype(int).plot(figsize=(16, 1), kind="area", color=["green"], alpha=0.45, title=f"{df.name} Trends", grid=True)    
     # Asset Portfolio from Trade Signals
-    assetpf_signals = vbt.Portfolio.from_signals(
-        df.Close,
-        signal_args=(vbt.Rep("entries"), vbt.Rep("exits")),
-        entries=asset_trends,
-        exits=asset_exits,    
-    #     entries=asset_signals.TS_Entries,
-    #     exits=asset_signals.TS_Exits,
-    )
+    if ta_name == "OBV":    
+        assetpf_signals = vbt.Portfolio.from_signals(
+            df.Open,
+            entries=asset_trends,
+            exits=asset_exits,    
+        #     entries=asset_signals.TS_Entries,
+        #     exits=asset_signals.TS_Exits,
+        )
+    else:
+        assetpf_signals = vbt.Portfolio.from_signals(
+            df.Close,
+            entries=asset_trends,
+            exits=asset_exits,    
+        #     entries=asset_signals.TS_Entries,
+        #     exits=asset_signals.TS_Exits,
+        )
     # print(assetpf_signals)
     trade_table(assetpf_signals, k=5)
     combine_stats(assetpf_signals, df.name, strat_name, LIVE)
@@ -89,7 +146,14 @@ def show_trend(df, df_ori, ta_name, stratfile, bnhfile, resultfile, crs):
             'value',
         ]
     ).write_image(bnhfile)
-    
+    print( "=" * 50)
+    print(f"Analysis of: {df.name}{crs if common_range else ''}")
+    print(f"             {strat_name}        Buy-n-Hold")
+    print( "=" * 50 + "")    
+    print(f"total_return: {round(total_return,2)},               {round(bnh_return,2)}")
+    print(f"total_value:   {round(end_value, 2)}              {round(bnh_value,2)}")
+    print( "=" * 50)
+
     with open(resultfile, "w") as f:
         f.write( "=" * 50 + "\n")
         f.write(f"Analysis of: {df.name}{crs if common_range else ''}\n")
@@ -99,7 +163,7 @@ def show_trend(df, df_ori, ta_name, stratfile, bnhfile, resultfile, crs):
         f.write(f"total_value:   {round(end_value, 2)}              {round(bnh_value,2)}\n")
         f.write( "=" * 50 + "\n")
     
-def run(datadir, ticker, ta_name):
+def run(datadir, ticker, ta_name, start_date, end_date):
     cheight, cwidth = 500, 1000 # Adjust as needed for Chart Height and Width
     vbt.settings.set_theme("dark") # Options: "light" (Default), "dark" (my fav), "seaborn"
 
@@ -123,18 +187,18 @@ def run(datadir, ticker, ta_name):
     tf = '1d'
     assets = retrieve_data([ticker], tf=tf)
 
-    start_date = datetime(2010, 1, 1) # Adjust as needed
-    end_date = datetime(2023, 10, 4)   # Adjust as needed
+    # start_date = datetime(2010, 1, 1) # Adjust as needed
+    # end_date = datetime(2023, 10, 4)   # Adjust as needed
 
     mbegin = pd.date_range(start_date, end_date, freq='BMS').strftime('%Y-%m-%d')
     mend = pd.date_range(start_date, end_date, freq='BM').strftime('%Y-%m-%d')
 
     # datadir = '/home/steven/av_data/trades_analysis'
-    startdate=datetime.now()
+    # startdate=datetime.now()
     # new_tz = pytz.timezone('US/Eastern')
     # startdate = startdate.astimezone(timezone('US/Pacific'))
 
-    tadate = startdate.strftime('%Y-%m-%d')
+    # tadate = startdate.strftime('%Y-%m-%d')
     tadir =os.path.join(datadir, 'ta-'+ ta_name)
     if not os.path.exists(tadir):
         os.makedirs(tadir)    
@@ -156,8 +220,10 @@ def run(datadir, ticker, ta_name):
         check_cross(assetdf, sma = 200)
     elif ta_name == "SEPT":
         assetdf = dtmonth(df_ori, start= mbegin, end = mend)
+    elif ta_name == "OBV":
+        assetdf = df_ori
     else:
-        assetdf = []
+        assetdf = pd.DataFrame() 
 
     if not assetdf.empty:
         assetdf.name = ticker
@@ -165,6 +231,9 @@ def run(datadir, ticker, ta_name):
         show_trend(df=assetdf, df_ori=df_ori, ta_name = ta_name, stratfile=filename, bnhfile=bnh_filename, resultfile=result_filename, crs=crs)
     else:
         print("Dataframe is empty")
+
+def mkdate(datestr):
+    return datetime.strptime(datestr, '%Y-%m-%d')
 
 def parse():
     parser = argparse.ArgumentParser(description='stock data collection')
@@ -177,8 +246,10 @@ def parse():
                        'train and val paths can be specified directly by providing both paths as arguments)')
 #     parser.add_argument('--list', '-l', metavar='LIST', default='all',
 #                         help='list of stock groups: sp500, dow or all') 
-#     parser.add_argument('--date', '-dt', metavar='DATE', type=mkdate, default=datetime.now(),
-#                         help='which date is to retrieve') 
+    parser.add_argument('--sdate', '-sdt', metavar='START DATE', type=mkdate, default=datetime.now()- timedelta(days=1*365),
+                        help='what is the start date of the period') 
+    parser.add_argument('--edate', '-edt', metavar='END DATE', type=mkdate, default=datetime.now(),
+                        help='what is the end date of the period') 
 # # 1m, 2m, 5m, 15m, 30m, 60m, 90m, 1h, 1d, 5d, 1wk, 1mo, 3mo                      
     parser.add_argument('--strategy', '-s', metavar='strat', default='SMA',
                         help='trade strategy name')                       
@@ -189,7 +260,7 @@ def parse():
 
 def main():
     args = parse()
-    run(datadir=args.dir, ticker = args.ticker.upper(), ta_name = args.strategy)
+    run(datadir=args.dir, ticker = args.ticker.upper(), ta_name = args.strategy, start_date=args.sdate, end_date=args.edate)
 
 
 if __name__ == '__main__':
