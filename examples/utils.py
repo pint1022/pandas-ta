@@ -390,7 +390,7 @@ class Chart(object):
             title=chart_title,
             type=self.mpfchart["type"],
             style=self.mpfchart["style"],
-            datetime_format="%-m/%-d/%Y",
+            datetime_format="%-m/%-d/%Y %m-%d %H",
             volume=self.config["volume"],
             figsize=self.mpfchart["figsize"],
             tight_layout=self.mpfchart["tight_layout"],
@@ -402,11 +402,15 @@ class Chart(object):
             vlines=vlines_,
             addplot=taplots
         )
+
         
         self._attribution()
+        
 def recent_bars(df, tf: str = "1y"):
     # All Data: 0, Last Four Years: 0.25, Last Two Years: 0.5, This Year: 1, Last Half Year: 2, Last Quarter: 4
-    yearly_divisor = {"all": 0, "10y": 0.1, "5y": 0.2, "4y": 0.25, "3y": 1./3, "2y": 0.5, "1y": 1, "6mo": 2, "3mo": 4}
+    yearly_divisor = {"all": 0, "10y": 0.1, "5y": 0.2, "4y": 0.25, "3y": 1./3, "2y": 0.5, "1y": 1, "6mo": 2, "3mo": 4, "10D": 1}
+    if (tf == '10D'):
+        return 10*26
     yd = yearly_divisor[tf] if tf in yearly_divisor.keys() else 0
     return int(ta.RATE["TRADING_DAYS_PER_YEAR"] / yd) if yd > 0 else df.shape[0]
 
@@ -450,7 +454,7 @@ def trade_asset(asset, trendy):
         print(trades)
     return asset, trades.tail(1)
 
-def retrieve_data(tickers,tf):
+def retrieve_data(tickers, tf='D', stratName = None):
     watch = Watchlist(tickers, tf=tf, ds_name="yahoo", timed=True)
     # watch.strategy = ta.CommonStrategy # If you have a Custom Strategy, you can use it here.
     momo_bands_sma_ta = [
@@ -470,18 +474,21 @@ def retrieve_data(tickers,tf):
         momo_bands_sma_ta, # ta
         "MACD and RSI Momo with BBANDS and SMAs 50 & 200 and Cumulative Log Returns" # description
     )
-    watch.strategy = momo_bands_sma_strategy
+    if stratName is None:
+        watch.strategy = momo_bands_sma_ta
+    else:
+        watch.strategy = stratName
     watch.load(tickers, analyze=True, verbose=False)
     
     return watch
 
-def read_assets(tickers, start_data, end_date):
-    assets = vbt.YFData.download(tickers, 
-                      start = start_date, 
-                      end = end_date, 
-                      interval="D",                                    
-                      missing_index="drop")
-    return assets
+# def read_assets(tickers, start_data, end_date):
+#     assets = vbt.YFData.download(tickers, 
+#                       start = start_date, 
+#                       end = end_date, 
+#                       interval="D",                                    
+#                       missing_index="drop")
+#     return assets
 
 def add_jc_data(asset):
 #     asset = watch.data[ticker]
@@ -556,7 +563,7 @@ def process_data(watch, ticker, tf, duration="10y"):
     # Example Long Trends
     # long = ta.sma(asset.close, 50) > ta.sma(asset.close, 200) # SMA(50) > SMA(200) "Golden/Death Cross"
     # long = ta.sma(asset.close, 10) > ta.sma(asset.close, 20) # SMA(10) > SMA(20)
-    long = ta.ema(asset.close, 8) > ta.ema(asset.close, 21) # EMA(8) > EMA(21)
+    long = ta.ema(asset.close, 5) > ta.ema(asset.close, 34) # EMA(8) > EMA(21)
 #     long = ta.increasing(ta.ema(asset.close, 50))
 #     long = ta.macd(asset.close).iloc[:,1] > 0 # MACD Histogram is positive
     # long = ta.amat(asset.close, 50, 200).AMATe_LR_2  # Long Run of AMAT(50, 200) with lookback of 2 bars
@@ -575,8 +582,8 @@ def process_data(watch, ticker, tf, duration="10y"):
     # AND [Daily PPO Line(12,26,9,Daily Close) < 0]
     #
     ###############################################################################################
-    asset.ta.ema(length=8, sma=False, append=True)
-    asset.ta.ema(length=21, sma=False, append=True)
+    asset.ta.ema(length=5, sma=False, append=True)
+    asset.ta.ema(length=34, sma=False, append=True)
     asset.ta.ema(length=50, sma=False, append=True)
     asset.ta.percent_return(append=True)
     print("TA Columns Added:")
@@ -601,27 +608,36 @@ def display_asset(asset, tf='D', duration="1y"):
 
     # chart = asset["close"] #asset[["close", "SMA_10", "SMA_20", "SMA_50", "SMA_200"]]
     # chart = asset[["close", "SMA_10", "SMA_20"]]
-    chart = asset[["close", "EMA_8", "EMA_21", "EMA_50"]]
+    chart = asset[["close", "EMA_5", "EMA_34", "EMA_50"]]
 #     obv_addplot = mpf.make_addplot(asset["PPO_12_26_9"], width=2, panel=2, ylabel="OBV")
-    
+    chart.index = chart.index.astype(str)        
+
     chart.plot(figsize=(16, 10), color=colors("BkGrOrRd"), title=ptitle, grid=True)
 
 def display_trend_1(trendy):
     long_trend = trendy.TS_Trends
     short_trend = 1 - long_trend
 
+    long_trend.index = long_trend.index.astype(str)
+    short_trend.index = short_trend.index.astype(str)
+    
     long_trend.plot(figsize=(16, 0.85), kind="area", stacked=True, color=colors()[0], alpha=0.25) # Green Area
     short_trend.plot(figsize=(16, 0.85), kind="area", stacked=True, color=colors()[1], alpha=0.25) # Red Area
     
 def display_trend_2(trendy):
+    trendy.TS_Trades.index = trendy.TS_Trades.index.astype(str)
     trendy.TS_Trades.plot(figsize=(16, 1.5), color=colors("BkBl")[0], grid=True)
 
 def display_return_1(asset, trendy):
     asset["ACTRET_1"] = trendy.TS_Trends.shift(1) * asset.PCTRET_1
+#     asset[["PCTRET_1", "ACTRET_1"]].index = asset[["PCTRET_1", "ACTRET_1"]].index.astype(str)
+    
     asset[["PCTRET_1", "ACTRET_1"]].plot(figsize=(16, 3), color=colors("GyOr"), alpha=1, grid=True).axhline(0, color="black")    
 
 def display_return_2(asset, trendy):
     asset["ACTRET_1"] = trendy.TS_Trends.shift(1) * asset.PCTRET_1
+#     asset["ACTRET_1"].index = asset["ACTRET_1"].index.astype(str)
+#     asset["PCTRET_1"].index = asset["PCTRET_1"].index.astype(str)    
     ((asset[["PCTRET_1", "ACTRET_1"]] + 1).cumprod() - 1).plot(figsize=(16, 3), kind="area", stacked=False, color=colors("GyOr"), title="B&H vs. Cum. Active Returns", alpha=.4, grid=True).axhline(0, color="black")
     
 def combine_stats(pf: vbt.portfolio.base.Portfolio, ticker: str, strategy: str, mode: int = 0):

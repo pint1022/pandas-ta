@@ -6,7 +6,7 @@ import pandas_ta as ta
 import vectorbt as vbt
 import os
 import yfinance as yf
-# import talib as vbt
+import talib 
 from datetime import datetime, timedelta, timezone
 
 
@@ -32,7 +32,7 @@ def mark_ticker(ticker, holds, buys, sells, entries, exits, tf):
     else:
         holds.append(ticker)
         
-def process(ticker, startdate, enddate, tf, flag='close', straSE='obv'):
+def strategy_trends(ticker, startdate, enddate, tf, flag_obv='close', flag_sig='close', straSE='obv', period=3):
     df = yf.download(ticker, 
                       start = startdate, 
                       end = enddate, 
@@ -49,20 +49,17 @@ def process(ticker, startdate, enddate, tf, flag='close', straSE='obv'):
     #
     # res = talib.CDL3INSIDE(df['open'], df['high'], df['low'], df['close'])
 
-    #
-    # obv
-    #
     if (straSE == 'CDL3O'):
-        res = talib.CDL3OUTSIDE(df['open'], df['high'], df['low'], df['close'])
+        res = talib.CDL3OUTSIDE(df[flag_obv], df['high'], df['low'], df['close'])
         entries =  res == 100
         exits = res == -100
     else: #(straSE == 'obv'
-        obv = talib.OBV(df[flag], df['volume'])
-        obv_ema = talib.EMA(obv, timeperiod=3)
+        obv = talib.OBV(df[flag_obv], df['volume'])
+        obv_ema = talib.EMA(obv, timeperiod=period)
         entries =  obv > obv_ema
         exits = obv < obv_ema
         
-    pf = vbt.Portfolio.from_signals(df[flag], entries, exits)
+    pf = vbt.Portfolio.from_signals(df[flag_sig], entries, exits)
     
     return pf, entries, exits
 

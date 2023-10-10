@@ -201,8 +201,18 @@ class Watchlist(object):
                 if not df.ta.datetime_ordered:
                     df = df.set_index(pd.DatetimeIndex(df[index]))
             if self.ds_name == "yahoo":
-                yf_data = self.ds.Ticker(ticker)
-                df = yf_data.history(period="max")
+                yf_data = self.ds.Ticker(ticker,tf)
+#                 ds.data(ticker, tf)
+                if (tf == 'D'):
+                    df = yf_data.history(period="max")
+                else:
+                    end_date = dt.datetime.now()
+                    # 20-DAY data 
+                    start_date = end_date - dt.timedelta(days=10)                    
+                    df = yf.download(ticker, 
+                                      start = start_date, 
+                                      end = end_date, 
+                                      interval=tf)    
                 to_save = f"{self.file_path}/{ticker}_{tf}.csv"
                 print(f"[+] Saving: {to_save}")
                 df.to_csv(to_save)

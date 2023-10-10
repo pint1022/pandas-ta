@@ -109,8 +109,6 @@ def show_trend(df, df_ori, ta_name, stratfile, bnhfile, resultfile, crs):
             df.Close,
             entries=asset_trends,
             exits=asset_exits,    
-        #     entries=asset_signals.TS_Entries,
-        #     exits=asset_signals.TS_Exits,
         )
     # print(assetpf_signals)
     trade_table(assetpf_signals, k=5)
