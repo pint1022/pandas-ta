@@ -625,20 +625,24 @@ def display_trend_1(trendy):
     short_trend.plot(figsize=(16, 0.85), kind="area", stacked=True, color=colors()[1], alpha=0.25) # Red Area
     
 def display_trend_2(trendy):
-    trendy.TS_Trades.index = trendy.TS_Trades.index.astype(str)
+#     trendy.TS_Trades.index = trendy.TS_Trades.index.astype(str)
     trendy.TS_Trades.plot(figsize=(16, 1.5), color=colors("BkBl")[0], grid=True)
 
 def display_return_1(asset, trendy):
     asset["ACTRET_1"] = trendy.TS_Trends.shift(1) * asset.PCTRET_1
 #     asset[["PCTRET_1", "ACTRET_1"]].index = asset[["PCTRET_1", "ACTRET_1"]].index.astype(str)
-    
-    asset[["PCTRET_1", "ACTRET_1"]].plot(figsize=(16, 3), color=colors("GyOr"), alpha=1, grid=True).axhline(0, color="black")    
+    RET = asset[["PCTRET_1", "ACTRET_1"]]
+    RET.index = RET.index.astype(str)
+    RET.plot(figsize=(16, 3), color=colors("GyOr"), alpha=1, grid=True).axhline(0, color="black")    
 
 def display_return_2(asset, trendy):
     asset["ACTRET_1"] = trendy.TS_Trends.shift(1) * asset.PCTRET_1
 #     asset["ACTRET_1"].index = asset["ACTRET_1"].index.astype(str)
 #     asset["PCTRET_1"].index = asset["PCTRET_1"].index.astype(str)    
-    ((asset[["PCTRET_1", "ACTRET_1"]] + 1).cumprod() - 1).plot(figsize=(16, 3), kind="area", stacked=False, color=colors("GyOr"), title="B&H vs. Cum. Active Returns", alpha=.4, grid=True).axhline(0, color="black")
+    RET = ((asset[["PCTRET_1", "ACTRET_1"]] + 1).cumprod() - 1)
+    RET.index = RET.index.astype(str)
+
+    RET.plot(figsize=(16, 3), kind="area", stacked=False, color=colors("GyOr"), title="B&H vs. Cum. Active Returns", alpha=.4, grid=True).axhline(0, color="black")
     
 def combine_stats(pf: vbt.portfolio.base.Portfolio, ticker: str, strategy: str, mode: int = 0):
     header = pd.Series({

@@ -39,7 +39,7 @@ def strategy_trends(ticker, startdate, enddate, tf, flag_obv='close', flag_sig='
                       interval=tf).fillna(0)
     # print(df.columns)
     df.columns = df.columns.str.lower()
-    # print(df[['open','high','low','close']])
+    print(df[['open','high','low','close']])
     # hammer pattern
     # res = talib.CDLHAMMER(df['open'], df['high'], df['low'], df['close'])
     # res_ =talib.CDLHANGINGMAN(df['open'], df['high'], df['low'], df['close'])
@@ -53,6 +53,16 @@ def strategy_trends(ticker, startdate, enddate, tf, flag_obv='close', flag_sig='
         res = talib.CDL3OUTSIDE(df[flag_obv], df['high'], df['low'], df['close'])
         entries =  res == 100
         exits = res == -100
+    elif (straSE == 'PSMA'): # price cross SMA 
+        price = df[flag_sig]
+        pri_sma = talib.SMA(price, timeperiod=period)
+        entries =  price > pri_sma
+        exits = price < pri_sma               
+    elif (straSE == 'RSMA'): # reverse price cross SMA 
+        price = df[flag_sig]
+        pri_sma = talib.SMA(price, timeperiod=period)
+        entries =  price < pri_sma
+        exits = price > pri_sma        
     else: #(straSE == 'obv'
         obv = talib.OBV(df[flag_obv], df['volume'])
         obv_ema = talib.EMA(obv, timeperiod=period)
