@@ -14,9 +14,8 @@ import sys
 import os
 import glob
 import pickle
+import sys
 
-
-file_path = "/home/steven/av_data"
 #
 # label: closes, tops, bottoms, indicators
 #

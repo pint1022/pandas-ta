@@ -204,15 +204,25 @@ class Watchlist(object):
                 yf_data = self.ds.Ticker(ticker,tf)
 #                 ds.data(ticker, tf)
                 if (tf == 'D'):
+                    print("history")
                     df = yf_data.history(period="max")
+#                     print(df)
                 else:
+                    if (tf[-1] == 'm'):
+                        delta = 60
+                    elif (tf[-1] == 'h'):
+                        delta = 720                        
+                    else:
+                        delta = 10000
+                        
                     end_date = dt.datetime.now()
                     # 20-DAY data 
-                    start_date = end_date - dt.timedelta(days=10)                    
+                    start_date = end_date - dt.timedelta(days=delta)                    
+                    print(start_date, end_date)
                     df = yf.download(ticker, 
-                                      start = start_date, 
-                                      end = end_date, 
-                                      interval=tf)    
+                                          start = start_date, 
+                                          end = end_date, 
+                                          interval=tf)    
                 to_save = f"{self.file_path}/{ticker}_{tf}.csv"
                 print(f"[+] Saving: {to_save}")
                 df.to_csv(to_save)

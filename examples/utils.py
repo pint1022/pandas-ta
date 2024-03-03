@@ -458,10 +458,14 @@ def retrieve_data(tickers, tf='D', stratName = None):
     watch = Watchlist(tickers, tf=tf, ds_name="yahoo", timed=True)
     # watch.strategy = ta.CommonStrategy # If you have a Custom Strategy, you can use it here.
     momo_bands_sma_ta = [
+        {"kind":"sma", "length": 5},
+        {"kind":"sma", "length": 10},
+        {"kind":"sma", "length": 20},
         {"kind":"sma", "length": 50},
         {"kind":"sma", "length": 100},
         {"kind":"sma", "length": 200},
         {"kind":"sma", "length": 250},
+        {"kind":"sma", "length": 375},
         {"kind":"bbands", "length": 20, "ddof": 0},
         {"kind":"macd"},
         {"kind":"rsi"},
@@ -474,8 +478,9 @@ def retrieve_data(tickers, tf='D', stratName = None):
         momo_bands_sma_ta, # ta
         "MACD and RSI Momo with BBANDS and SMAs 50 & 200 and Cumulative Log Returns" # description
     )
+#     print(stratName)
     if stratName is None:
-        watch.strategy = momo_bands_sma_ta
+        watch.strategy = momo_bands_sma_strategy
     else:
         watch.strategy = stratName
     watch.load(tickers, analyze=True, verbose=False)
